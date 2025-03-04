@@ -1,0 +1,1259 @@
+概念简述
+完成本节，你将能够：
+
+理解MetaGPT关于智能体和环境的概念
+理解智能体之间如何相互作用以及多智能体协作的形式
+我们的目标是以直观和简化的方式解释这些概念，使用户具备进一步探索该教程的背景知识。 尽管我们力求表述清晰，但我们深知过度简化可能导致准确性受损或遗漏重要信息。因此，我们建议在后续文档中进行更多浏览，以获得全面的理解。
+
+如果你希望先进行实践编码，可以跳转到智能体入门。
+
+如果你希望更严谨和完整的表述，欢迎浏览我们的论文。
+
+智能体
+学术界和工业界对术语“智能体”提出了各种定义。大致来说，一个智能体应具备类似人类的思考和规划能力，拥有记忆甚至情感，并具备一定的技能以便与环境、智能体和人类进行交互。
+
+在MetaGPT看来，可以将智能体想象成环境中的数字人，其中
+
+智能体 = 大语言模型（LLM） + 观察 + 思考 + 行动 + 记忆
+
+这个公式概括了智能体的功能本质。为了理解每个组成部分，让我们将其与人类进行类比：
+
+大语言模型（LLM）：LLM作为智能体的“大脑”部分，使其能够处理信息，从交互中学习，做出决策并执行行动。
+观察：这是智能体的感知机制，使其能够感知其环境。智能体可能会接收来自另一个智能体的文本消息、来自监视摄像头的视觉数据或来自客户服务录音的音频等一系列信号。这些观察构成了所有后续行动的基础。
+思考：思考过程涉及分析观察结果和记忆内容并考虑可能的行动。这是智能体内部的决策过程，其可能由LLM进行驱动。
+行动：这些是智能体对其思考和观察的显式响应。行动可以是利用 LLM 生成代码，或是手动预定义的操作，如阅读本地文件。此外，智能体还可以执行使用工具的操作，包括在互联网上搜索天气，使用计算器进行数学计算等。
+记忆：智能体的记忆存储过去的经验。这对学习至关重要，因为它允许智能体参考先前的结果并据此调整未来的行动。
+多智能体
+多智能体系统可以视为一个智能体社会，其中
+
+多智能体 = 智能体 + 环境 + 标准流程（SOP） + 通信 + 经济
+
+这些组件各自发挥着重要的作用：
+
+智能体：在上面单独定义的基础上，在多智能体系统中的智能体协同工作，每个智能体都具备独特有的LLM、观察、思考、行动和记忆。
+环境：环境是智能体生存和互动的公共场所。智能体从环境中观察到重要信息，并发布行动的输出结果以供其他智能体使用。
+标准流程（SOP）：这些是管理智能体行动和交互的既定程序，确保系统内部的有序和高效运作。例如，在汽车制造的SOP中，一个智能体焊接汽车零件，而另一个安装电缆，保持装配线的有序运作。
+通信：通信是智能体之间信息交流的过程。它对于系统内的协作、谈判和竞争至关重要。
+经济：这指的是多智能体环境中的价值交换系统，决定资源分配和任务优先级。
+一个例子
+img
+
+这是一个简单的例子，展示了智能体如何工作：
+
+在环境中，存在三个智能体Alice、Bob和Charlie，它们相互作用。
+他们可以将消息或行动的输出结果发布到环境中，同时也会被其他智能体观察到。
+下面将揭示智能体Charlie的内部过程，该过程同样适用于Alice和Bob。
+在内部，智能体Charlie具备我们上述所介绍的部分组件，如LLM、观察、思考、行动。Charlie思考和行动的过程可以由LLM驱动，并且还能在行动的过程中使用工具。
+Charlie观察来自Alice的相关文件和来自Bob的需求，获取有帮助的记忆，思考如何编写代码，执行写代码的行动，最终发布结果。
+Charlie通过将结果发布到环境中以通知Bob。Bob在接收后回复了一句赞美的话。
+现在你对这些概念有了初步了解。随时进行下一步的学习，了解MetaGPT是如何为你构建智能体并为其动态提供框架支持的。
+
+
+
+
+智能体入门
+完成本节，你将能够：
+
+使用现成的智能体
+开发你的第一个能够执行一个或多个动作的智能体
+使用现成的智能体
+python
+# 可导入任何角色，初始化它，用一个开始的消息运行它，完成！
+import asyncio
+
+from metagpt.context import Context
+from metagpt.roles.product_manager import ProductManager
+from metagpt.logs import logger
+
+async def main():
+    msg = "Write a PRD for a snake game"
+    context = Context()  # 显式创建会话Context对象，Role对象会隐式的自动将它共享给自己的Action对象
+    role = ProductManager(context=context)
+    while msg:
+        msg = await role.run(msg)
+        logger.info(str(msg))
+
+if __name__ == '__main__':
+    asyncio.run(main())
+开发你的第一个智能体
+从实际使用的角度考虑，一个智能体要对我们有用，它必须具备哪些基本要素呢？从MetaGPT的观点来看，如果一个智能体能够执行某些动作（无论是由LLM驱动还是其他方式），它就具有一定的用途。简单来说，我们定义智能体应该具备哪些行为，为智能体配备这些能力，我们就拥有了一个简单可用的智能体！MetaGPT提供高度灵活性，以定义您自己所需的行为和智能体。我们将在本节的其余部分指导您完成这一过程。
+
+一个智能体运行周期的流程图
+flowchart
+
+具有单一动作的智能体
+假设我们想用自然语言编写代码，并想让一个智能体为我们做这件事。让我们称这个智能体为 SimpleCoder，我们需要两个步骤来让它工作：
+
+定义一个编写代码的动作
+为智能体配备这个动作
+定义动作
+在 MetaGPT 中，类 Action 是动作的逻辑抽象。用户可以通过简单地调用 self._aask 函数令 LLM 赋予这个动作能力，即这个函数将在底层调用 LLM api。
+
+在我们的场景中，我们定义了一个 SimpleWriteCode 子类 Action。虽然它主要是一个围绕提示和 LLM 调用的包装器，但我们认为这个 Action 抽象更直观。在下游和高级任务中，使用它作为一个整体感觉更自然，而不是分别制作提示和调用 LLM，尤其是在智能体的框架内。
+
+python
+from metagpt.actions import Action
+
+class SimpleWriteCode(Action):
+    PROMPT_TEMPLATE: str = """
+    Write a python function that can {instruction} and provide two runnnable test cases.
+    Return ```python your_code_here ``` with NO other texts,
+    your code:
+    """
+
+    name: str = "SimpleWriteCode"
+
+    async def run(self, instruction: str):
+        prompt = self.PROMPT_TEMPLATE.format(instruction=instruction)
+
+        rsp = await self._aask(prompt)
+
+        code_text = SimpleWriteCode.parse_code(rsp)
+
+        return code_text
+
+    @staticmethod
+    def parse_code(rsp):
+        pattern = r"```python(.*)```"
+        match = re.search(pattern, rsp, re.DOTALL)
+        code_text = match.group(1) if match else rsp
+        return code_text
+定义角色
+在 MetaGPT 中，Role 类是智能体的逻辑抽象。一个 Role 能执行特定的 Action，拥有记忆、思考并采用各种策略行动。基本上，它充当一个将所有这些组件联系在一起的凝聚实体。目前，让我们只关注一个执行动作的智能体，并看看如何定义一个最简单的 Role。
+
+在这个示例中，我们创建了一个 SimpleCoder，它能够根据人类的自然语言描述编写代码。步骤如下：
+
+我们为其指定一个名称和配置文件。
+我们使用 self._init_action 函数为其配备期望的动作 SimpleWriteCode。
+我们覆盖 _act 函数，其中包含智能体具体行动逻辑。我们写入，我们的智能体将从最新的记忆中获取人类指令，运行配备的动作，MetaGPT将其作为待办事项 (self.rc.todo) 在幕后处理，最后返回一个完整的消息。
+python
+from metagpt.roles import Role
+
+class SimpleCoder(Role):
+    name: str = "Alice"
+    profile: str = "SimpleCoder"
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.set_actions([SimpleWriteCode])
+
+    async def _act(self) -> Message:
+        logger.info(f"{self._setting}: to do {self.rc.todo}({self.rc.todo.name})")
+        todo = self.rc.todo  # todo will be SimpleWriteCode()
+
+        msg = self.get_memories(k=1)[0]  # find the most recent messages
+        code_text = await todo.run(msg.content)
+        msg = Message(content=code_text, role=self.profile, cause_by=type(todo))
+
+        return msg
+完成！
+
+运行你的角色
+现在我们可以让我们的智能体开始工作，只需初始化它并使用一个起始消息运行它。
+
+python
+import asyncio
+
+from metagpt.context import Context
+
+async def main():
+    msg = "write a function that calculates the sum of a list"
+    context = Context()
+    role = SimpleCoder(context=context)
+    logger.info(msg)
+    result = await role.run(msg)
+    logger.info(result)
+
+asyncio.run(main)
+具有多个动作的智能体
+我们注意到一个智能体能够执行一个动作，但如果只有这些，实际上我们并不需要一个智能体。通过直接运行动作本身，我们可以得到相同的结果。智能体的力量，或者说Role抽象的惊人之处，在于动作的组合（以及其他组件，比如记忆，但我们将把它们留到后面的部分）。通过连接动作，我们可以构建一个工作流程，使智能体能够完成更复杂的任务。
+
+假设现在我们不仅希望用自然语言编写代码，而且还希望生成的代码立即执行。一个拥有多个动作的智能体可以满足我们的需求。让我们称之为RunnableCoder，一个既写代码又立即运行的Role。我们需要两个Action：SimpleWriteCode 和 SimpleRunCode
+
+定义动作
+首先，定义 SimpleWriteCode。我们将重用上面创建的那个。
+
+接下来，定义 SimpleRunCode。如前所述，从概念上讲，一个动作可以利用LLM，也可以在没有LLM的情况下运行。在SimpleRunCode的情况下，LLM不涉及其中。我们只需启动一个子进程来运行代码并获取结果。我们希望展示的是，对于动作逻辑的结构，我们没有设定任何限制，用户可以根据需要完全灵活地设计逻辑。
+
+python
+class SimpleRunCode(Action):
+    name: str = "SimpleRunCode"
+
+    async def run(self, code_text: str):
+        result = subprocess.run(["python3", "-c", code_text], capture_output=True, text=True)
+        code_result = result.stdout
+        logger.info(f"{code_result=}")
+        return code_result
+定义角色
+与定义单一动作的智能体没有太大不同！让我们来映射一下：
+
+用 self.set_actions 初始化所有 Action
+指定每次 Role 会选择哪个 Action。我们将 react_mode 设置为 "by_order"，这意味着 Role 将按照 self.set_actions 中指定的顺序执行其能够执行的 Action（有关更多讨论，请参见 思考和行动）。在这种情况下，当 Role 执行 _act 时，self.rc.todo 将首先是 SimpleWriteCode，然后是 SimpleRunCode。
+覆盖 _act 函数。Role 从上一轮的人类输入或动作输出中检索消息，用适当的 Message 内容提供当前的 Action (self.rc.todo)，最后返回由当前 Action 输出组成的 Message。
+python
+class RunnableCoder(Role):
+    name: str = "Alice"
+    profile: str = "RunnableCoder"
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.set_actions([SimpleWriteCode, SimpleRunCode])
+        self._set_react_mode(react_mode="by_order")
+
+    async def _act(self) -> Message:
+        logger.info(f"{self._setting}: to do {self.rc.todo}({self.rc.todo.name})")
+        # By choosing the Action by order under the hood
+        # todo will be first SimpleWriteCode() then SimpleRunCode()
+        todo = self.rc.todo
+
+        msg = self.get_memories(k=1)[0]  # find the most k recent messages
+        result = await todo.run(msg.content)
+
+        msg = Message(content=result, role=self.profile, cause_by=type(todo))
+        self.rc.memory.add(msg)
+        return msg
+运行你的角色
+现在可以让你的智能体开始工作，只需初始化它并使用一个起始消息运行它。
+
+python
+import asyncio
+
+from metagpt.context import Context
+
+async def main():
+    msg = "write a function that calculates the sum of a list"
+    context = Context()
+    role = RunnableCoder(context=context)
+    logger.info(msg)
+    result = await role.run(msg)
+    logger.info(result)
+
+asyncio.run(main)
+本节完整脚本
+https://github.com/geekan/MetaGPT/blob/main/examples/build_customized_agent.py
+
+通过以下命令运行：
+
+shell
+python3 examples/build_customized_agent.py --msg "write a function that calculates the sum of a list"
+或在Colab上运行
+
+
+多智能体入门
+在上一章中，我们简要讨论了单智能体的创建。虽然对许多情况来说，单智能体可能已经足够，但更复杂的任务通常需要协作和团队合作，这也就是多智能体为什么必不可少的原因。MetaGPT的核心优势也在于轻松灵活地开发一个智能体团队。在MetaGPT框架下，用户可以通过少量代码实现智能体之间的交互。
+
+完成本节，你将能够：
+
+理解智能体之间如何进行交互
+开发你的第一个智能体团队
+运行“软件公司”示例
+shell
+metagpt "write a function that calculates the product of a list"
+开发你的第一个智能体团队
+希望你会发现软件创业示例很有启发。也许现在你已经有了灵感，想要开发一个根据你的独特需求而定制的智能体团队。在本节中，我们将继续在智能体入门中的简单代码示例中添加更多角色，并引入智能体之间的交互协作。
+
+让我们还雇佣一名测试人员和一名审阅人员携手与编码人员一起工作。这开始看起来像一个开发团队了，不是吗？总的来说，我们需要三个步骤来建立团队并使其运作：
+
+定义每个角色能够执行的预期动作
+基于标准作业程序（SOP）确保每个角色遵守它。通过使每个角色观察上游的相应输出结果，并为下游发布自己的输出结果，可以实现这一点。
+初始化所有角色，创建一个带有环境的智能体团队，并使它们之间能够进行交互。
+完整的代码在本教程的末尾可用
+
+定义动作和角色
+与智能体入门相同的过程，我们可以定义三个具有各自动作的Role：
+
+SimpleCoder 具有 SimpleWriteCode 动作，接收用户的指令并编写主要代码
+SimpleTester 具有 SimpleWriteTest 动作，从 SimpleWriteCode 的输出中获取主代码并为其提供测试套件
+SimpleReviewer 具有 SimpleWriteReview 动作，审查来自 SimpleWriteTest 输出的测试用例，并检查其覆盖范围和质量
+通过上述概述，我们使得 SOP（标准作业程序）变得更加清晰明了。接下来，我们将详细讨论如何根据 SOP 来定义Role。
+
+定义动作
+我们列举了三个 Action。
+
+python
+class SimpleWriteCode(Action):
+    PROMPT_TEMPLATE: str = """
+    Write a python function that can {instruction}.
+    Return ```python your_code_here ``` with NO other texts,
+    your code:
+    """
+    name: str = "SimpleWriteCode"
+
+    async def run(self, instruction: str):
+        prompt = self.PROMPT_TEMPLATE.format(instruction=instruction)
+
+        rsp = await self._aask(prompt)
+
+        code_text = parse_code(rsp)
+
+        return code_text
+python
+class SimpleWriteTest(Action):
+    PROMPT_TEMPLATE: str = """
+    Context: {context}
+    Write {k} unit tests using pytest for the given function, assuming you have imported it.
+    Return ```python your_code_here ``` with NO other texts,
+    your code:
+    """
+
+    name: str = "SimpleWriteTest"
+
+    async def run(self, context: str, k: int = 3):
+        prompt = self.PROMPT_TEMPLATE.format(context=context, k=k)
+
+        rsp = await self._aask(prompt)
+
+        code_text = parse_code(rsp)
+
+        return code_text
+python
+class SimpleWriteReview(Action):
+    PROMPT_TEMPLATE: str = """
+    Context: {context}
+    Review the test cases and provide one critical comments:
+    """
+
+    name: str = "SimpleWriteReview"
+
+    async def run(self, context: str):
+        prompt = self.PROMPT_TEMPLATE.format(context=context)
+
+        rsp = await self._aask(prompt)
+
+        return rsp
+定义角色
+在许多多智能体场景中，定义Role可能只需几行代码。对于SimpleCoder，我们做了两件事：
+
+使用 set_actions 为Role配备适当的 Action，这与设置单智能体相同
+多智能体操作逻辑：我们使Role _watch 来自用户或其他智能体的重要上游消息。回想我们的SOP，SimpleCoder接收用户指令，这是由MetaGPT中的UserRequirement引起的Message。因此，我们添加了 self._watch([UserRequirement])。
+这就是用户需要做的全部。对于那些对底层机制感兴趣的人，请参见本教程的本章中的机制解释。
+
+python
+class SimpleCoder(Role):
+    name: str = "Alice"
+    profile: str = "SimpleCoder"
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self._watch([UserRequirement])
+        self.set_actions([SimpleWriteCode])
+与上述相似，对于 SimpleTester，我们：
+
+使用 set_actions 为SimpleTester配备 SimpleWriteTest 动作
+使Role _watch 来自其他智能体的重要上游消息。回想我们的SOP，SimpleTester从 SimpleCoder 中获取主代码，这是由 SimpleWriteCode 引起的 Message。因此，我们添加了 self._watch([SimpleWriteCode])。
+一个扩展的问题：想一想如果我们使用 self._watch([SimpleWriteCode, SimpleWriteReview]) 会意味着什么，可以尝试这样做
+
+此外，你可以为智能体定义自己的操作逻辑。这适用于Action需要多个输入的情况，你希望修改输入，使用特定记忆，或进行任何其他更改以反映特定逻辑的情况。因此，我们：
+
+重写 _act 函数，就像我们在智能体入门中的单智能体设置中所做的那样。在这里，我们希望SimpleTester将所有记忆用作编写测试用例的上下文，并希望有5个测试用例。
+python
+class SimpleTester(Role):
+    name: str = "Bob"
+    profile: str = "SimpleTester"
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.set_actions([SimpleWriteTest])
+        self._watch([SimpleWriteCode])
+        # self._watch([SimpleWriteCode, SimpleWriteReview])  # feel free to try this too
+
+    async def _act(self) -> Message:
+        logger.info(f"{self._setting}: to do {self.rc.todo}({self.rc.todo.name})")
+        todo = self.rc.todo
+
+        # context = self.get_memories(k=1)[0].content # use the most recent memory as context
+        context = self.get_memories()  # use all memories as context
+
+        code_text = await todo.run(context, k=5)  # specify arguments
+        msg = Message(content=code_text, role=self.profile, cause_by=type(todo))
+
+        return msg
+按照相同的过程定义 SimpleReviewer：
+
+python
+class SimpleReviewer(Role):
+    name: str = "Charlie"
+    profile: str = "SimpleReviewer"
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.set_actions([SimpleWriteReview])
+        self._watch([SimpleWriteTest])
+创建一个团队并添加角色
+现在我们已经定义了三个 Role，是时候将它们放在一起了。我们初始化所有角色，设置一个 Team，并hire 它们。
+
+运行 Team，我们应该会看到它们之间的协作！
+
+python
+import fire
+import typer
+from metagpt.logs import logger
+from metagpt.team import Team
+app = typer.Typer()
+
+@app.command()
+def main(
+    idea: str = typer.Argument(..., help="write a function that calculates the product of a list"),
+    investment: float = typer.Option(default=3.0, help="Dollar amount to invest in the AI company."),
+    n_round: int = typer.Option(default=5, help="Number of rounds for the simulation."),
+):
+    logger.info(idea)
+
+    team = Team()
+    team.hire(
+        [
+            SimpleCoder(),
+            SimpleTester(),
+            SimpleReviewer(),
+        ]
+    )
+
+    team.invest(investment=investment)
+    team.run_project(idea)
+    await team.run(n_round=n_round)
+
+if __name__ == "__main__":
+    fire.Fire(main)
+本教程的完整脚本
+https://github.com/geekan/MetaGPT/blob/main/examples/build_customized_multi_agents.py
+
+使用以下命令运行：
+
+sh
+python3 examples/build_customized_multi_agents.py --idea "write a function that calculates the product of a list"
+或在Colab上运行
+
+在Colab中打开
+
+机制解释
+虽然用户可以编写几行代码来设置运行的Role，但描述内部机制是有益的，这样用户就能理解设置代码的含义，并对框架有一个整体的了解。
+
+img
+
+如图的右侧部分所示，Role将从Environment中_observe Message。如果有一个Role _watch 的特定 Action 引起的 Message，那么这是一个有效的观察，触发Role的后续思考和操作。在 _think 中，Role将选择其能力范围内的一个 Action 并将其设置为要做的事情。在 _act 中，Role执行要做的事情，即运行 Action 并获取输出。将输出封装在 Message 中，最终 publish_message 到 Environment，完成了一个完整的智能体运行。
+
+在每个步骤中，无论是 _observe、_think 还是 _act，Role都将与其 Memory 交互，通过添加或检索来实现。此外，MetaGPT提供了 react 过程的不同模式。这些部分的详细内容，请参阅使用记忆 和 思考与行动。
+
+当每个 Role 被适当设置时，我们可以看到与本教程中前面示例相应的SOP，如图的左侧部分所示。虚线框表明如果我们使 SimpleTester 同时 _watch SimpleWriteCode 和 SimpleWriteReview，则可以扩展 SOP。
+
+我们鼓励对此感兴趣的开发人员查看 Role 的代码，因为它相当易读。可以 run、_observe、react、_think、_act、publish_message的内容，应该能够让你对其有一个相当不错的理解。
+
+
+
+
+
+使用记忆
+如概念中所讨论的，记忆是智能体的核心组件之一。智能体需要记忆来获取做出决策或执行动作所需的基本上下文，还需要记忆来学习技能或积累经验。在本教程中，我们将介绍记忆的基本使用方法。
+
+完成本节，你将能够：
+
+理解MetaGPT中记忆的概念
+如何添加或检索记忆
+什么是记忆
+在MetaGPT中，Memory类是智能体的记忆的抽象。当初始化时，Role初始化一个Memory对象作为self.rc.memory属性，它将在之后的_observe中存储每个Message，以便后续的检索。简而言之，Role的记忆是一个含有Message的列表。
+
+检索记忆
+当需要获取记忆时（获取LLM输入的上下文），你可以使用self.get_memories。函数定义如下：
+
+python
+def get_memories(self, k=0) -> list[Message]:
+    """A wrapper to return the most recent k memories of this role, return all when k=0"""
+    return self.rc.memory.get(k=k)
+例如，在多智能体入门中，我们调用此函数为测试人员提供完整的历史记录。通过这种方式，如果审阅人员提供反馈，测试人员可以参考其先前版本修改测试用例。片段如下
+
+python
+async def _act(self) -> Message:
+        logger.info(f"{self._setting}: ready to {self.rc.todo}")
+        todo = self.rc.todo
+
+        # context = self.get_memories(k=1)[0].content # use the most recent memory as context
+        context = self.get_memories() # use all memories as context
+
+        code_text = await todo.run(context, k=5) # specify arguments
+
+        msg = Message(content=code_text, role=self.profile, cause_by=todo)
+
+        return msg
+添加记忆
+可以使用self.rc.memory.add(msg)添加记忆，，其中msg必须是Message的实例。请查看上述的代码片段以获取示例用法。
+
+建议在定义_act逻辑时将Message的动作输出添加到Role的记忆中。通常，Role需要记住它先前说过或做过什么，以便采取下一步的行动。
+
+
+
+
+创建和使用工具
+在 MetaGPT 中创建工具是一个直接的过程，涉及创建自己的函数或类，并将它们放在 metagpt/tools/libs 目录下。本教程提供了一个如何创建工具并在数据解释器DataInterpreter中使用它们的逐步指南。
+
+创建工具的步骤
+创建预提供的函数或类:
+
+编写专门用于与外部环境进行特定交互的函数或类，并将它们放置在metagpt/tools/libs目录中。
+
+使用谷歌风格的文档字符串（Docstring）:
+
+为每个函数或类配备谷歌风格的文档字符串。这作为一个简洁而全面的参考资料，详细说明其用途、输入参数和预期输出。
+
+应用@register_tool装饰器:
+
+使用@register_tool装饰器以确保在工具注册表中准确注册。这个装饰器简化了函数或类与DataInterpreter的集成。
+
+自定义工具案例
+为了说明这个过程，请阅读下列从函数和类中自定义工具的示例。
+
+自定义计算阶乘的工具
+在 metagpt/tools/libs 中创建一个你自己的函数，假设它是 calculate_factorial.py，并添加装饰器 @register_tool 以将其注册为工具
+
+python
+# metagpt/tools/libs/calculate_factorial.py
+import math
+from metagpt.tools.tool_registry import register_tool
+
+# 使用装饰器注册工具
+@register_tool()
+def calculate_factorial(n):
+    """
+    计算非负整数的阶乘
+    """
+    if n < 0:
+        raise ValueError("输入必须是非负整数")
+    return math.factorial(n)
+在数据解释器DataInterpreter中使用工具
+
+python
+# main.py
+import asyncio
+from metagpt.roles.di.data_interpreter import DataInterpreter
+from metagpt.tools.libs import calculate_factorial
+
+async def main(requirement: str):
+    role = DataInterpreter(tools=["calculate_factorial"]) # 集成工具
+    await role.run(requirement)
+
+if __name__ == "__main__":
+    requirement = "请计算 5 的阶乘"
+    asyncio.run(main(requirement))
+注意：
+
+别忘了为你的函数编写文档字符串（docstring），这将有助于 DataInterpreter 选择合适的工具并理解其工作方式。
+在注册工具时，工具的名称就是函数的名称。
+在运行 DataInterpreter 之前，记得从 metagpt.tools.libs 导入你的 calculate_factorial 模块，以确保该工具已被注册。
+自定义计算器工具
+在 metagpt/tools/libs 中创建一个你自己的类，假设它是 calculator.py，并添加装饰器 @register_tool 以将其注册为工具
+
+python
+# metagpt/tools/libs/calculator.py
+import math
+from metagpt.tools.tool_registry import register_tool
+
+# 使用装饰器注册工具
+# “math”的tag用于将工具分类为数学工具，include_functions 参数用于指定要包含的函数。这有利于`DataInterpreter`选择并理解工具
+@register_tool(tags=["math"], include_functions=["__init__", "add", "subtract", "multiply", "divide", "factorial"])
+class Calculator:
+   """
+   一个简单的计算器工具，可以执行基本的算术运算并计算阶乘。
+   """
+
+   @staticmethod
+   def add(a, b):
+       """
+       计算两个数的和。
+       """
+       return a + b
+
+   @staticmethod
+   def subtract(a, b):
+       """
+       计算两个数的差。
+       """
+       return a - b
+
+   @staticmethod
+   def multiply(a, b):
+       """
+       计算两个数的乘积。
+       """
+       return a * b
+
+   @staticmethod
+   def divide(a, b):
+       """
+       计算两个数的商。
+       """
+       if b == 0:
+           return "错误：除数不能为零"
+       else:
+           return a / b
+
+   @staticmethod
+   def factorial(n):
+       """
+       计算非负整数的阶乘。
+       """
+       if n < 0:
+           raise ValueError("输入必须是非负整数")
+       return math.factorial(n)
+在数据解释器DataInterpreter中使用工具
+
+python
+# main.py
+import asyncio
+from metagpt.roles.di.data_interpreter import DataInterpreter
+from metagpt.tools.libs import calculator
+
+async def main(requirement: str):
+   role = DataInterpreter(tools=["Calculator"])   # 集成工具
+   await role.run(requirement)
+
+if __name__ == "__main__":
+   requirement = "请计算 3 和 11 的和，然后计算 5 的阶乘"
+   asyncio.run(main(requirement))
+注意：
+
+别忘了为你的类和函数编写文档字符串（docstring），这将有助于 DataInterpreter 选择合适的工具并理解其工作方式。
+在注册工具时，工具的名称就是类的名称。
+在运行 DataInterpreter 之前，记得从 metagpt.tools.libs 导入你的 calculator 模块，以确保该工具已被注册。
+通过遵循这些步骤，用户可以无缝地创建并整合MetaGPT中Tools框架内的工具，使DataInterpreter能够有效地与外部环境交互。
+
+
+
+
+人类介入
+当我们谈论智能体时，通常指的是由LLM驱动的。然而，在一些实际情境中，我们确实希望人类介入，无论是为了项目的质量保证，在关键决策中提供指导，还是在游戏中扮演角色。在本教程中，我们将讨论如何将人类纳入SOP。
+
+完成本节，你将能够：
+
+引入基于LLM的智能体和人类之间的交互
+在LLM和人类之间切换
+我们将重用 多智能体入门 中的确切示例。
+
+最初，LLM扮演 SimpleReviewer 的角色。假设我们想对更好地控制审阅过程，我们可以亲自担任这个Role。这只需要一个开关：在初始化时设置 is_human=True。代码变为：
+
+python
+team.hire(
+    [
+        SimpleCoder(),
+        SimpleTester(),
+        # SimpleReviewer(), # 原始行
+        SimpleReviewer(is_human=True), # 更改为这一行
+    ]
+)
+我们作为人类充当 SimpleReviewer，现在与两个基于LLM的智能体 SimpleCoder 和 SimpleTester 进行交互。我们可以对SimpleTester写的单元测试进行评论，比如要求测试更多边界情况，让SimpleTester进行改写。这个切换对于原始的SOP和 Role 定义是完全不可见的（无影响），这意味着可以应用于任何场景。
+
+每次轮到我们回应时，运行过程将暂停并等待我们的输入。只需输入我们想要输入的内容，然后就将消息发送给其他智能体了！
+
+约束： 对于自定义 Role 的 _act 函数的开发人员，_act 中调用的 Action 必须是在 self.set_actions 初始化时与 self._actions 中的动作之一，以便人类参与生效。
+
+局限性： 当前人类交互通过命令行终端进行，对人类提供多行或结构化的内容较为不便。同时，人类需要像LLM一样在格式或内容上遵循提示词，以使获得人类输入后的后续流程正常运行。我们会在后续更新中改善这两类问题。
+
+
+
+集成开源LLM
+目前，如果要得到比较稳定的代码生成结果，需要使用OpenAI的GPT-3.5或GPT-4。但目前也有很多其他优秀的开源模型可以供实验，也能够得到令人相对满意的结果。因此，在本教程中，我们将探讨如何接入开源LLM并根据你的输入需求得到项目输出。
+
+注意
+本教程所述内容由于开源模型效果本身的局限性，并不能保证代码的稳定生成效果。如果你按该教程进行实验，表示你已知晓该点。
+同时，我们也在探索如何在开源模型下得到更稳定、质量更好的输出。如果你对此也感兴趣，可以在discord或者微信社区群里联系我们。
+相信随着开源模型的更新，这一目标将很快到来。
+
+我们将按照下述流程进行教程的整体介绍：
+
+模型部署。使用推理仓库比如：LLaMA-Factory、FastChat、ollama等进行对应LLM模型的部署。
+LLM配置。
+可选的，修复LLM输出结果。
+运行使用。
+集成开源LLM和集成一些非openai的闭源模型（如文心一言、讯飞星火、智谱ChatGLM等）的方式都差不多，主要是配置差异。其他闭源LLM的配置具体可以参考文档站下的其他LLM配置相关文档。配置完成后的其他流程步骤与上述的保持一致。
+
+模型部署
+注意，推荐使用openai兼容接口进行模型部署。这样，请求和返回处理都可以直接使用openai sdk进行处理，将会简化整体的集成流程。同时，下述几个推理仓库也支持发布为openai兼容的接口（除ollama外），需要改动的工作量很小。
+
+注意，这边默认你是有显卡资源进行部署，不然CPU推理会有点慢。
+
+LLaMA-Factory
+仓库：https://github.com/hiyouga/LLaMA-Factory
+
+安装
+shell
+git clone https://github.com/hiyouga/LLaMA-Factory.git
+conda create -n llama_factory python=3.10
+conda activate llama_factory
+cd LLaMA-Factory
+pip install -r requirements.txt
+具体的，可以看安装
+
+支持模型
+常见的LLaMA、Llama2和中国的多数开源模型都支持，具体可看模型列表
+
+部署启动
+源模型启动
+
+shell
+python3 src/api_demo.py \
+    --model_name_or_path meta-llama/Llama-2-13b-chat-hf \
+    --template llama2
+加载合并lora产出启动
+
+shell
+python3 src/api_demo.py \
+    --model_name_or_path path_to_llama2_model \
+    --template llama2 \
+    --finetuning_type lora \
+    --checkpoint_dir path_to_checkpoint
+默认的，接口访问地址为：http://0.0.0.0:8000/ ，如需修改端口，进入src/api_demo.py进行修改。
+如需多卡启动，则在启动命令前加 CUDA_VISIBLE_DEVICES=0,1,2，对应换成你的卡号。
+不同的模型支持的template值不同，可以从src/llmtuner/data/template.py查到。
+
+具体的，可以看API部署
+
+请求示例
+shell
+curl -X POST http://0.0.0.0:8000/v1/chat/completions -H "content-type:application/json" -d '{
+  "messages":[{"role":"user","content":"who are you"}],
+  "model": "gpt-3.5-turbo",
+  "stream": false,
+  "max_tokens": 256
+}'
+默认的，请求的model参数值为gpt-3.5-turbo，如需修改。进入src/llmtuner/api/app.py 的list_models方法内修改为你的自定义值。
+
+FastChat
+仓库：https://github.com/lm-sys/FastChat
+
+安装
+shell
+pip3 install "fschat[model_worker,webui]"
+具体的，可以看安装
+
+支持模型
+常见的LLaMA、Llama2和中国的多数开源模型都支持，具体可看模型列表
+
+部署启动
+流程
+
+启动 controller，python3 -m fastchat.serve.controller
+启动源模型 model worker，python3 -m fastchat.serve.model_worker --model-path lmsys/vicuna-13b-v1.5 --conv-template vicuna_v1.1 --model-names vicuna
+启动 openai 兼容接口，python3 -m fastchat.serve.openai_api_server --host localhost --port 8000
+如果是需要启动lora微调后的模型，需要先做模型合并
+
+具体的，可以看API部署
+
+请求示例
+shell
+curl -X POST http://0.0.0.0:8000/v1/chat/completions -H "content-type:application/json" -d '{
+  "messages":[{"role":"user","content":"who are you"}],
+  "model": "gpt-3.5-turbo",
+  "stream": false,
+  "max_tokens": 256
+}'
+默认的，请求的model参数值为vicuna，对应启动model_worker时的model-names。
+
+vllm
+仓库：https://github.com/vllm-project/vllm
+
+安装
+shell
+pip3 install vllm
+具体的，可以看安装
+
+支持模型
+常见的LLaMA、Llama2和中国的多数开源模型都支持，具体可看模型列表
+
+部署启动
+shell
+python3 -m vllm.entrypoints.openai.api_server \
+    --model meta-llama/Llama-2-13b-hf \
+    --served-model-name llama2-13b
+具体的，可以看API部署
+
+请求示例
+shell
+
+curl -X POST http://0.0.0.0:8000/v1/chat/completions -H "content-type:application/json" -d '{
+  "messages":[{"role":"user","content":"who are you"}],
+  "model": "llama2-13b",
+  "stream": false,
+  "max_tokens": 256
+}'
+默认的，请求的model参数值为llama2-13b，对应启动时的served-model-name。
+
+ollama
+仓库：https://github.com/jmorganca/ollama
+
+该仓库不支持兼容openai api接口，后续MetaGPT会支持其本身提供的接口方式。
+
+安装
+shell
+curl https://ollama.ai/install.sh | sh
+具体的，可以看安装
+
+支持模型
+主要支持Llama2及其衍生系列，具体可看模型列表
+
+部署启动
+shell
+ollama run llama2  # 下载速度还可以 (10+MB/s)
+非本地访问
+默认情况下启动的ollama服务只能本地访问，即http://localhost:11434/api/chat 或 http://127.0.0.1:11434/api/chat ，如果想要支持 http://ip:11434/api/chat ，可以按下述操作：
+
+bash
+service ollama stop
+
+OLLAMA_HOST=0.0.0.0 OLLAMA_ORIGINS=* ollama serve  # 一个terminal窗口
+
+ollama run llama2                                  # 另一个terminal窗口
+llama2使用文档
+
+具体的，可以看API部署
+
+请求示例
+shell
+# 默认是`stream: true`的非流式输出
+
+curl -X POST http://localhost:11434/api/chat -d '{
+  "model": "llama2",
+  "messages": [
+    {
+      "role": "user",
+      "content": "why is the sky blue?"
+    }
+  ]
+ }'
+返回结果
+
+json
+{
+  "model": "llama2",
+  "created_at": "2023-12-21T14:40:31.635304023Z",
+  "message": {
+    "role": "assistant",
+    "content": "The sky appears blue ...."
+  },
+  "done": true,
+  "total_duration": 30355794101,
+  "load_duration": 1156507,
+  "prompt_eval_count": 26,
+  "prompt_eval_duration": 1037945000,
+  "eval_count": 288,
+  "eval_duration": 29311846000
+}
+LLM配置
+由于上述部署为API接口，因此通过修改配置文件config/config2.yaml进行生效。
+
+openai兼容接口
+如 LLaMA-Factory、FastChat、vllm部署的openai兼容接口
+
+config/config2.yaml
+
+yaml
+llm:
+  api_type: open_llm
+  base_url: 'http://106.75.10.xxx:8000/v1'
+  model: 'llama2-13b'
+openapi chat接口的完整路由http://0.0.0.0:8000/v1/chat/completions，base_url 只需要配置到http://0.0.0.0:8000/v1 ，剩余部分openai sdk会补齐。model为请求接口参数model的实际值。
+
+ollama api接口
+如通过ollama部署的模型服务
+
+config/config2.yaml
+
+yaml
+llm:
+  api_type: ollama
+  base_url: 'http://127.0.0.1:11434/api'
+  model: 'llama2'
+ollama chat接口的完整路由http://127.0.0.1:11434/api/chat ，base_url 只需要配置到http://127.0.0.1:11434/api ，剩余部分由OllamaLLM 补齐。model 为请求接口参数model 的实际值。
+
+可选的，修复LLM输出结果
+背景
+本教程主要是指导如何在MetaGPT中对接开源模型（以及非openai的闭源模型），由于LLM的输出结果与prompt指令格式有很大的关系，开源模型（部分非openai的闭源模型）往往很难跟随MetaGPT的现有角色指令进行输出。一方面，我们会优化角色指令，使得其在多数开闭源模型下有更好的指令结果输出兼容性，另一方面，针对现状情况，对开源LLM的输出内容进行修复，提升整体的执行成功率。
+
+开源模型指令输出主要问题
+包括部分非openai闭源模型的问题。
+MetaGPT的prompt对输出有较强的结构要求，开源模型输出时，往往很难按指令跟随完整输出，导致输出的内容会存在缺失遗漏、错误的情况，主要表现为：
+
+目标key不能按prompt约定的大小写进行输出
+输出的json纯文本存在缺失或多出特殊字符。如，{"a":b"}}，{"a":b"]}，{"a":b" 等等。
+针对上述情况，我们增加了修复开源LLM输出的功能，具体的
+config/config2.yaml
+
+yaml
+llm: ...
+
+repair_llm_output: true
+开启该功能后，执行过程中将尝试去修复上述情况。该开关目前并不能保证完整修复，仍会有些情况我们暂未覆盖（不同的开源模型的情况有所不同），执行过程会中断退出。如果你对此感兴趣，欢迎提PR，并附上对应的模型说明、测试日志和单测用例。
+
+如果你开启了该功能，表示将会对LLM输出（MetaGPT里软件公司里的ProductManager、Architect角色）进行修复，日志中会出现repair_的关键词，你可以留意下。
+
+运行使用
+按上述流程执行后，你就可以开始正式使用了。
+metagpt "write a snake game"
+
+延伸
+MetaGPT本身是一个多智能体框架，不局限于软件项目生成。你也可以结合集成的开源模型在自己的应用场景中构建对应的智能体进行使用。
+开始你的智能体之旅吧~
+
+
+
+为角色或动作配置不同LLM
+MetaGPT允许你为团队中的不同Role和Action使用不同的LLM，这极大地增强了团队互动的灵活性和现实性，使得每个Role可以根据其特定的需求和背景，以及每个Action的特点，选择最合适的LLM。通过这种方式，你可以更精细地控制对话的质量和方向，从而创造出更加丰富和真实的交互体验。请在开始教程之前，确保你已阅读配置和辩论。
+
+以下是设置步骤：
+
+定义配置：使用默认配置，或者从~/.metagpt目录中加载自定义配置。
+分配配置：将特定的LLM配置分配给Role和Action。配置的优先级：Action config > Role config > Global config（config in config2.yaml）。
+团队交互：创建一个带有环境的团队，开始交互。
+示例
+考虑一个美国大选的现场直播环境，我们将创建三个Role：A、B和C。A和B是两个候选人，C是一个选民。
+
+定义配置
+你可以使用默认配置，为不同的Role和Action配置LLM，也可以在~/.metagpt目录中加载自定义配置。
+
+python
+from metagpt.config2 import Config
+
+# 以下是一些示例配置，分别为gpt-4、gpt-4-turbo 和 gpt-3.5-turbo。
+gpt4 = Config.from_home("gpt-4.yaml")  # 从`~/.metagpt`目录加载自定义配置`gpt-4.yaml`
+gpt4t = Config.default()  # 使用默认配置，即`config2.yaml`文件中的配置，此处`config2.yaml`文件中的model为"gpt-4-turbo"
+gpt35 = Config.default()
+gpt35.llm.model = "gpt-3.5-turbo"  # 将model修改为"gpt-3.5-turbo"
+分配配置
+创建Role和Action，并为其分配配置。
+
+python
+from metagpt.roles import Role
+from metagpt.actions import Action
+
+# 创建a1、a2和a3三个Action。并为a1指定`gpt4t`的配置。
+a1 = Action(config=gpt4t, name="Say", instruction="Say your opinion with emotion and don't repeat it")
+a2 = Action(name="Say", instruction="Say your opinion with emotion and don't repeat it")
+a3 = Action(name="Vote", instruction="Vote for the candidate, and say why you vote for him/her")
+
+# 创建A，B，C三个角色，分别为“民主党候选人”、“共和党候选人”和“选民”。
+# 虽然A设置了config为gpt4，但因为a1已经配置了Action config，所以A将使用model为gpt4的配置，而a1将使用model为gpt4t的配置。
+A = Role(name="A", profile="Democratic candidate", goal="Win the election", actions=[a1], watch=[a2], config=gpt4)
+# 因为B设置了config为gpt35，而为a2未设置Action config，所以B和a2将使用Role config，即model为gpt35的配置。
+B = Role(name="B", profile="Republican candidate", goal="Win the election", actions=[a2], watch=[a1], config=gpt35)
+# 因为C未设置config，而a3也未设置config，所以C和a3将使用Global config，即model为gpt4的配置。
+C = Role(name="C", profile="Voter", goal="Vote for the candidate", actions=[a3], watch=[a1, a2])
+请注意，对于关注的Action而言，配置的优先级为：Action config > Role config > Global config 。不同Role和Action的配置情况如下：
+
+Action of interest	Global config	Role config	Action config	Effective config for the Action
+a1	gpt4	gpt4	gpt4t	gpt4t
+a2	gpt4	gpt35	unspecified	gpt35
+a3	gpt4	unspecified	unspecified	gpt4
+团队交互
+创建一个带有环境的团队，并使其进行交互。
+
+python
+import asyncio
+from metagpt.environment import Environment
+from metagpt.team import Team
+
+# 创建一个描述为“美国大选现场直播”的环境
+env = Environment(desc="US election live broadcast")
+team = Team(investment=10.0, env=env, roles=[A, B, C])
+# 运行团队，我们应该会看到它们之间的协作
+asyncio.run(team.run(idea="Topic: climate change. Under 80 words per message.", send_to="A", n_round=3))
+# await team.run(idea="Topic: climate change. Under 80 words per message.", send_to="A", n_round=3) # 如果在Jupyter Notebook中运行，使用这行代码
+完整代码和对应配置示例
+默认配置： ~/.metagpt/config2.yaml
+
+yaml
+llm:
+  api_type: 'openai'
+  model: 'gpt-4-turbo'
+  base_url: 'https://api.openai.com/v1'
+  api_key: 'sk-...' # YOUR_API_KEY
+自定义配置： ~/.metagpt/gpt-4.yaml
+
+yaml
+llm:
+  api_type: 'openai'
+  model: 'gpt-4o'
+  base_url: 'https://api.openai.com/v1'
+  api_key: 'sk-...' # YOUR_API_KEY
+python
+from metagpt.config2 import Config
+from metagpt.roles import Role
+from metagpt.actions import Action
+import asyncio
+from metagpt.environment import Environment
+from metagpt.team import Team
+
+# 以下是一些示例配置，分别为gpt-4、gpt-4-turbo 和 gpt-3.5-turbo。
+gpt4 = Config.from_home("gpt-4.yaml")  # 从`~/.metagpt`目录加载自定义配置`gpt-4.yaml`
+gpt4t = Config.default()  # 使用默认配置，即`config2.yaml`文件中的配置，此处`config2.yaml`文件中的model为"gpt-4-turbo"
+gpt35 = Config.default()
+gpt35.llm.model = "gpt-3.5-turbo"  # 将model修改为"gpt-3.5-turbo"
+
+# 创建a1、a2和a3三个Action。并为a1指定`gpt4t`的配置。
+a1 = Action(config=gpt4t, name="Say", instruction="Say your opinion with emotion and don't repeat it")
+a2 = Action(name="Say", instruction="Say your opinion with emotion and don't repeat it")
+a3 = Action(name="Vote", instruction="Vote for the candidate, and say why you vote for him/her")
+
+# 创建A，B，C三个角色，分别为“民主党候选人”、“共和党候选人”和“选民”。
+# 虽然A设置了config为gpt4，但因为a1已经配置了Action config，所以A将使用model为gpt4的配置，而a1将使用model为gpt4t的配置。
+A = Role(name="A", profile="Democratic candidate", goal="Win the election", actions=[a1], watch=[a2], config=gpt4)
+# 因为B设置了config为gpt35，而为a2未设置Action config，所以B和a2将使用Role config，即model为gpt35的配置。
+B = Role(name="B", profile="Republican candidate", goal="Win the election", actions=[a2], watch=[a1], config=gpt35)
+# 因为C未设置config，而a3也未设置config，所以C和a3将使用Global config，即model为gpt4的配置。
+C = Role(name="C", profile="Voter", goal="Vote for the candidate", actions=[a3], watch=[a1, a2])
+
+# 创建一个描述为“美国大选现场直播”的环境
+env = Environment(desc="US election live broadcast")
+team = Team(investment=10.0, env=env, roles=[A, B, C])
+# 运行团队，我们应该会看到它们之间的协作
+asyncio.run(team.run(idea="Topic: climate change. Under 80 words per message.", send_to="A", n_round=3))
+# await team.run(idea="Topic: climate change. Under 80 words per message.", send_to="A", n_round=3) # 如果在Jupyter Notebook中运行，使用这行代码
+
+
+
+
+
+
+
+
+
+
+
+Agent Communication
+智能体之间的消息交换是通过Message中提供标签的属性，以及Environment提供的publish_message能力来实现的。
+
+智能体作为消息的发送者，只需提供消息的来源信息即可。消息的来源对应Message的sent_from、cause_by。
+智能体作为消息的使用者，需要订阅相应的消息。消息的订阅标签对应Message的cause_by。
+Environment对象负责将消息按各个智能体的订阅需求，广播给各个智能体。
+python
+class Message(BaseModel):
+    id: str = Field(default="", validate_default=True)  # According to Section 2.2.3.1.1 of RFC 135
+    content: str
+    instruct_content: Optional[BaseModel] = Field(default=None, validate_default=True)
+    role: str = "user"  # system / user / assistant
+    cause_by: str = Field(default="", validate_default=True)
+    sent_from: str = Field(default="", validate_default=True)
+    send_to: set[str] = Field(default={MESSAGE_ROUTE_TO_ALL}, validate_default=True)
+在规划智能体之间的消息转发流程时，首先要确定智能体的功能边界，这跟设计一个函数的套路一样：
+
+智能体输入什么。智能体的输入决定了智能体对象的rc.watch的值。
+智能体输出什么。智能体的输出决定了智能体输出Message的参数。
+智能体要完成什么工作。智能体要完成什么工作决定了智能体有多少action，action之间按什么状态流转。
+我们以一个复杂的交互示例为例，来介绍整个实现的过程。 假设我们要实现如下的流程：
+
+text
+Agent A takes requirements, splits into 10 subtasks.
+Agent B is assigned to do 10 sub tasks.
+Agent C is assigned to compile 10 subtasks.
+Agent D reviews the compilation, provides feedback to Agent B.
+
+Steps 2-4 need to happen 3-4 times. How do I architect my system such that this happens the right way? I can do the dirty code to tape it together but wanted to know the right way.
+分析这个场景，我们可以得出如下结论：
+
+Agent A负责将需求拆分成10个subtasks.
+对于每一个subtask, Agent B,C,D按如下流程处理：
+
+Message(subtask) -> AgentB.run -> AgentC.run -> AgentD.run -> AgentB.run -> AgentC.run -> AgentD.run -> ...
+也就是：
+Agent B的输入是Agent A的一个subtask，或者是Agent D的执行结果；
+Agent C的输入是Agent B的输出；
+Agent D的输入是Agent C的输出；
+因此，Agent A的action需要将用户需求拆分成10个subtasks,发给Agent B：
+
+第一步：让Agent A能接收用户发过来的需求：
+python
+class AgentA(Role):
+    def __init__(self, **kwargs) -> None:
+        super().__init__(**kwargs)
+        # Initialize actions specific to the Architect role
+        self.set_actions([AgentAAction]) # 由于智能体只有1种action，所以不用改写_think函数。
+
+        # 订阅消息
+        self._watch({UserRequirement}) # UserRequirement是Message缺省的cause_by的值
+第二步： AgentAAction中，将用户需求拆分成10份
+python
+class AgentAAction(Aciton):
+    async def run(self, with_messages:List[Message]=None, **kwargs) -> List[str]:
+        subtasks: List[str] = split_10_subtask(with_messages[0].content)
+        return subtasks
+第三步：Agent A在_act中run AgentAAction，然后将结果发给Agent B：
+python
+class AgentA(Role):
+    async def _act(self) -> Message:
+        subtasks = await self.rc.todo.run(self.rc.history)
+        for i in subtasks:
+           self.rc.env.publish_message(Message(content=i, cause_by=AgentAAction)) # 发送10条这种消息，Agent B订阅了这种类型的消息
+        return Message(content="dummy message", send_to=MESSAGE_ROUTE_TO_NONE) # 消息已发，所以return一个空消息就行
+Agent B、Agent C和Agent D的消息收发逻辑相同：
+
+Agent B订阅cause_by为AgentAAction和AgentDAction的消息；
+Agent C订阅cause_by为AgentBAction的消息；
+Agent D订阅cause_by为AgentCAction的消息；
+python
+class AgentBAction(Action):
+        async def run(self, with_messages:List[Message]=None, **kwargs) -> Message:
+            ... # 将结果填到Message里
+
+class AgentB(Role):
+    def __init__(self, **kwargs) -> None:
+        super().__init__(**kwargs)
+        # Initialize actions specific to the Architect role
+        self.set_actions([AgentBAction]) # 由于智能体只有1种action，所以不用改写_think函数。
+
+        # 订阅消息
+        self._watch({AgentAAction, AgentDAction})
+python
+class AgentCAction(Action):
+        async def run(self, with_messages:List[Message]=None, **kwargs) -> Message:
+            ... # 将结果填到Message里
+
+class AgentC(Role):
+    def __init__(self, **kwargs) -> None:
+        super().__init__(**kwargs)
+        # Initialize actions specific to the Architect role
+        self.set_actions([AgentCAction]) # 由于智能体只有1种action，所以不用改写_think函数。
+
+        # 订阅消息
+        self._watch({AgentBAction})
+python
+class AgentDAction(Action):
+        async def run(self, with_messages:List[Message]=None, **kwargs) -> Message:
+            ... # 将结果填到Message里
+
+class AgentD(Role):
+    def __init__(self, **kwargs) -> None:
+        super().__init__(**kwargs)
+        # Initialize actions specific to the Architect role
+        self.set_actions([AgentDAction]) # 由于智能体只有1种action，所以不用改写_think函数。
+
+        # 订阅消息
+        self._watch({AgentCAction})
+现在，所有智能体都定义完毕了，接下来只需将它们放到同一个Environment对象中，然后将用户消息发给Agent A，让它们联动起来：
+
+python
+    context = Context() # Load config2.yaml
+    env = Environment(context=context)
+    env.add_roles([AgentA(), AgentB(), AgentC(), AgentD()])
+    env.publish_message(Message(content='New user requirements', send_to=AgentA)) # 将用户的消息发送个Agent A，让Agent A开始工作。
+    while not env.is_idle: # env.is_idle要等到所有Agent都没有任何新消息要处理后才会为True
+        await env.run()
+
+
+
+
+
+
+增量开发
+您可以通过以下步骤改进现有项目代码：
+
+在计算机上的任意位置找到您想要改进的由 MetaGPT 创建的项目的文件夹
+执行 metagpt <user-requirements-described-in-natural-language-about-new-idea-or-bug-feedback> --project-path <the-project-path-created-by-metagpt>
+metagpt Options
+通过使用以下参数，可以连续迭代 MetaGPT 生成的现有项目。
+
+CLI 参数名称	值类型	可选/必填	描述	用法
+--project-path	TEXT	Optional	指定metagpt创建的旧版本项目的目录路径，以满足增量需求。	metagpt "BUG_FEEDBACK_XXX" --project-path "YOUR_PROJECT_FULL_PATH"
+
+metagpt "INCREMENT_REQUIREMENTS" --project-path "YOUR_PROJECT_FULL_PATH"
+--project-name	TEXT	Optional	唯一的项目名称，例如“game_2048”。	metagpt "NEW_REQUIREMENTS" --project-name "YOUR_PROJECT_NAME"
+有关更多命令选项，请检查 metagpt --help
+
+
+
+序列化&断点恢复
+定义
+断点恢复指在程序运行过程中，记录程序不同模块的产出并落盘。当程序碰到外部如Ctrl-C或内部执行异常如LLM Api网络异常导致退出等情况时。再次执行程序，能够从中断前的结果中恢复继续执行，而无需从0到1开始执行，降低开发者的时间和费用成本。
+
+序列化与反序列化
+为了能支持断点恢复操作，需要对程序中的不同模块产出进行结构化存储即序列化的过程，保存后续用于恢复操作的现场。序列化的操作根据不同模块的功能有所区分，比如角色基本信息，初始化后即可以进行序列化，过程中不会发生改变。记忆信息，需要执行过程中，实时进行序列化保证完整性（序列化耗时在整个程序执行中的占比很低）。这里，我们统一在发生异常或正常结束运行时进行序列化。
+
+实现逻辑
+可能产生中断的情况
+网络等问题，LLM-Api调用重试多次后仍失败
+Action执行过程中，输出内容解析失败导致退出
+人为的Ctrl-C对程序进行中断
+序列化存储结构
+为了减少后续新增功能对存储结构的影响，使用“一体化“的单json文件进行存储。
+
+当程序发生中断或结束后，在存储目录下的文件结构如下：
+
+bash
+./workspace
+  storage
+    team
+      team.json          # 包含团队、环境、角色、动作等信息
+team.json 对应内容的数据概要示例。
+恢复时的执行顺序
+由于MetaGPT是异步执行框架，对于下述几种典型的中断截点和恢复顺序。
+
+角色A（1个action）-> 角色B（2个action），角色A进行action选择时出现异常退出。
+角色A（1个action）-> 角色B（2个action），角色B第1个action执行正常，第2个action执行时出现异常退出。
+情况1
+执行入口重新执行后，各模块进行反序列化。角色A未观察到属于自己处理的Message，重新执行对应的action。角色B恢复后，观察到一条之前未处理完毕的Message，则在_observe后重新执行对应的react操作，按react策略执行对应2个动作。
+
+情况2
+执行入口重新执行后，各模块进行反序列化。角色A未观察到属于自己处理的Message，不处理。角色B恢复后，_observe到一条之前未完整处理完毕的Message，在react中，知道自己在第2个action执行失败，则直接从第2个action开始执行。
+
+从中断前的Message开始重新执行
+一般来说，Message是不同角色间沟通协作的桥梁，当在Message的执行过程中发生中断后，由于该Message已经被该角色存入环境（Environment）记忆（Memory）中。在进行恢复中，如果直接加载角色全部Memory，该角色的_observe将不会观察到中断时引发当时执行Message，从而不能恢复该Message的继续执行。
+因此，为了保证该Message在恢复时能够继续执行，需要在发生中断后，根据_observe到的最新信息，从角色记忆中删除对应的该条Message。
+
+从中断前的Action开始重新执行
+一般来说，Action是一个相对较小的执行模块粒度，当在Action的执行过程中发生中断后，需要知道多个Actions的执行顺序以及当前执行到哪个Action（_rc.state）。当进行恢复时，定位到中断时的Action位置并重新执行该Action。
+
+结果
+断点恢复入口
+metagpt "xxx" --recover_path "./workspace/storage/team" # 默认序列化到./workspace/storage/team中。
+
+恢复后继续执行结果
+这里提供了一个单测用例用于说明断点恢复执行：
+
+python3 -s tests/metagpt/serialize_deserialize/test_team.py的test_team_recover_multi_roles_save的执行case
+
+RoleB的ActionRaise模拟Action异常。执行到该Action时发生异常，序列化项目后退出。 重新启动后，RoleA和RoleB的ActionOK已经执行过，不继续执行。RoleB继续从ActionRaise执行，碰到异常继续退出。
+
+
+
+
+
+
+RAG 模块
+RAG（Retrieval-Augmented Generation）通过引用外部权威知识库来优化大型语言模型（LLM）的输出，增强其生成响应的能力。这种方法允许LLM在不重新训练的情况下，访问特定领域的知识，提高输出的相关性、准确性和实用性。
+
+本文主要介绍当前MetaGPT所提供的RAG功能：
+
+数据输入，支持多种格式文件（包括pdf/docx/md/csv/txt/ppt）、python对象
+检索功能，支持faiss/bm25/chromadb/es，并支持混合检索
+检索后处理，支持LLM Rerank/ColbertRerank/CohereRerank/BGERerank/ObjectRerank，对上面检索出来的内容进行重排以得到更准确的数据
+数据更新，增加文本与python对象
+数据保存及恢复，不用每次都进行向量化
+
+
+
+
+
+环境
+早期的MetaGPT版本使用和metagpt/environment/base_env.py中Environment相同的实现来描述一个软件团队所处的环境。为了能够支持多智能体在不同环境（比如游戏、手机端等）中对接使用，我们扩展了环境的整体定义和功能，使其更好的支持不同场景的开发。
+
+定义
+ExtEnv外部环境，定义为智能体与不同环境交互的载体。比如智能体待对接的游戏是一个远端引擎服务，对外提供的api接口集合，我们通过定义该外部环境来管理对接API，使得智能体具备和游戏交互的直接能力。又比如，智能体对接角色扮演狼人杀游戏，定义该外部环境用来实现狼人杀本身的游戏规则，从而智能体可以知道天黑、天亮后的角色当前状态。
+
+XxxEnv内部环境，定义为智能体与其所属团队直接使用的环境，类似软件开发中使用的Environment，一般的，它直接继承ExtEnv，并按需求额外添加自定义部分。
+
+在ExtEnv中，我们参考强化学习场景中gymnasium的设计，引入了观察空间observation_space和动作空间action_space，分别用来表示从外部环境中获得的状态集合以及可以作用于环境的动作集合。通过2个空间的定义，可以简化不同环境下的抽象，使得环境提供者专注于环境逻辑的实现以及使用者专注于不同空间值的使用。
+
+额外的，还提供了针对ExtEnv提供的不同读写接口的装饰器mark_as_readable和mark_as_writeable，方便将用于外部环境对接的方法接口进行统一管理，便于后续智能体将其作为一种工具能力，能够根据输入的自然语言直接进行不同外部环境对接接口的自动调用（这一部分功能待开放）。
+
+观察空间、动作空间定义规范
+在gymnasium定义观察、动作空间时，一般是定义离散值或连续值。但在支持的这些场景环境中，由于更多是需要通过API或者接口访问游戏引擎服务或者外部模拟器。因此，对于动作空间（gymnasium.spaces.Dict），其包含不同的动作类型及不同动作下的所需入参的子空间定义。对于搜索空间（gymnasium.spaces.Dict），其包含可从环境中得到的环境信息，比如地图、屏幕截图等。
+
+metagpt/environment/base_env_space.py内的BaseEnvActionType定义了动作类型，BaseEnvAction定义了动作空间对应的一组取值，BaseEnvObsType定义了观察类型。
+一般的，gymnasium内得到的观察空间值是一组完整的观察值，但在实际应用中，往往需要从环境中得到局部观察值（比如在斯坦福小镇中，需要获取智能体所处位置视野范围内的地图信息，而非完整地图）。我们添加了observe(self, obs_params: Optional[BaseEnvObsParams] = None)方法来获取局部环境信息，BaseEnvObsParams定义了获取观察值的所需参数，包括观察类型和其所需入参。
+
+不同场景环境
+目前，我们提供了几种场景环境并在MetaGPT/examples/下提供了对应的场景使用入口。
+
+待添加，Minecraft环境
+已添加，狼人杀环境
+已添加，斯坦福小镇环境
+已添加，安卓模拟器环境
+待添加，网页环境
+
+
+
