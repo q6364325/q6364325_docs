@@ -1,0 +1,45 @@
+services:
+  metrics-proxy:
+    image: haproxy:3.2-alpine
+    restart: unless-stopped
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+
+    command:
+      - haproxy
+      - -W
+      - -db
+      - -f
+      - /usr/local/etc/haproxy/haproxy.cfg
+
+    ports:
+      - "${PLATCAP_WEB_METRICS_PORTS:-127.0.0.1:9301}:9301"
+      - "${PLATCAP_REPO_METRICS_PORTS:-127.0.0.1:9302}:9302"
+
+    networks:
+      default: {}
+      backend: {}
+
+    volumes:
+      - ./metrics-proxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+
+    read_only: true
+    mem_limit: 128m
+    cpus: 0.25
+    pids_limit: 64
+
+    healthcheck:
+      test:
+        - CMD
+        - haproxy
+        - -c
+        - -f
+        - /usr/local/etc/haproxy/haproxy.cfg
+      interval: 10s
+      timeout: 3s
+      retries: 3
