@@ -1,0 +1,8 @@
+services:
+  metrics-proxy:
+    extends:
+      file: compose.metrics-proxy.yaml
+      service: metrics-proxy
+
+  web:
+    # 原有配置
