@@ -1,45 +1,55 @@
-# Smokescreen 通过统一上网代理访问 Internet
+# 双节点 Smokescreen 使用 HTTP 上游代理
 
-本文说明如何在 Docker Compose 部署中，为 Smokescreen 增加透明出网网关，使其实际出口统一经过 HTTP CONNECT 或 SOCKS5 代理，同时保留 Smokescreen 的 SSRF、目标端口和公网地址检查。
+## 1. 方案说明
 
-## 1. 前提与目标
-
-以下示例假设：
-
-- 部署环境：Linux Docker Engine。
-- 统一代理地址：`10.20.30.40:3128`。
-- 统一代理类型：HTTP CONNECT。
-- 首先只调整网页爬取链路，暂不调整 `smokescreen-repo`。
-
-最终链路如下：
+本文只说明一种部署方式：node1、node2 各自运行本机 Smokescreen，并分别通过本机透明出口网关连接同一个无需认证的 HTTP 上游代理。
 
 ```text
-web / Chromium
-    → Smokescreen
-    → iptables 透明重定向
-    → redsocks
-    → 10.20.30.40:3128
-    → Internet
+node1: web / Chromium -> Smokescreen-1 -> egress-gateway-1 -> HTTP 上游代理 -> Internet
+node2: web / Chromium -> Smokescreen-2 -> egress-gateway-2 -> HTTP 上游代理 -> Internet
 ```
 
-Smokescreen 继续负责：
+固定原则：
 
-- 拒绝内网、本机、链路本地和云元数据地址。
-- 只允许目标端口 `80` 和 `443`。
-- 解析并检查目标域名对应的 IP 地址。
-- 为普通 HTTP 抓取和浏览器抓取提供统一安全边界。
+- web 和 Chromium 仍然只连接本机 Smokescreen；
+- node1 不向 node2 提供 Smokescreen，node2 也不访问 node1 的 `4750`；
+- 两个节点使用完全相同的透明转发配置；
+- 上游代理不需要用户名和密码；
+- 不修改 PlatCap、Smokescreen、web 或 Chromium 的代码；
+- 只增加 Docker Compose 部署层的 `egress-gateway`、配置文件和启动脚本；
+- Smokescreen 仍负责目标端口限制、私网地址拒绝和 SSRF 防护；
+- 只有 Smokescreen 发出的目标端口为 `80`、`443` 的 TCP 连接会被透明转发到上游代理。
 
-透明网关负责将 Smokescreen 原本准备直接发往目标网站的 TCP 连接转交给统一代理。
+> Docker Compose 的 `networks` 没有 HTTP 上游代理配置项，当前 Smokescreen 也没有上游代理参数。因此不能只设置 `HTTP_PROXY` 或 `HTTPS_PROXY`。这里使用透明出口网关接管 Smokescreen 的出口连接。
 
-## 2. 创建 redsocks 配置
+## 2. 部署前准备
 
-在项目目录中创建：
+假设上游代理为：
+
+```text
+10.20.30.40:3128
+```
+
+部署前在 node1、node2 分别验证：
+
+```bash
+curl -I -x http://10.20.30.40:3128 https://example.com
+curl -I -x http://10.20.30.40:3128 http://example.com
+```
+
+两条命令都应成功。第二条失败通常表示上游代理不允许访问 HTTP 80 端口，需要先调整上游代理策略。
+
+如果上游代理填写的是域名，建议先解析为固定内网 IP。透明转发配置应使用 IP，避免网关启动时受 DNS 状态影响。
+
+## 3. 创建无需认证的 redsocks 配置
+
+在两个节点的项目目录中创建：
 
 ```text
 deploy/secrets/redsocks.conf
 ```
 
-HTTP CONNECT 代理配置示例：
+内容如下，只需要替换 `ip` 和 `port`：
 
 ```conf
 base {
@@ -56,38 +66,21 @@ redsocks {
 
     ip = 10.20.30.40;
     port = 3128;
-
     type = http-connect;
-
-    login = "proxy-user";
-    password = "proxy-password";
 }
 ```
 
-如果代理不需要认证，删除：
+本方案没有 `login` 和 `password`。
 
-```conf
-login = "proxy-user";
-password = "proxy-password";
-```
-
-如果统一代理为 SOCKS5，将代理类型改为：
-
-```conf
-type = socks5;
-```
-
-经典 redsocks 通常要求 `ip` 是 IP 地址，建议不要直接填写域名。如果代理只有域名，应在部署时将其解析为可信、稳定的 IP 地址。
-
-保护配置文件：
+限制文件权限：
 
 ```bash
 chmod 600 deploy/secrets/redsocks.conf
 ```
 
-应把该文件加入 `.gitignore`，不要把代理密码提交到代码仓库。非 Swarm 模式下的 Docker Compose Secret 本质上仍是宿主机文件挂载，因此仍需保护宿主机文件权限。
+建议将实际配置加入 `.gitignore`，只在仓库中保留不含真实地址的示例文件。
 
-## 3. 创建透明网关启动脚本
+## 4. 创建透明出口网关脚本
 
 创建：
 
@@ -105,7 +98,7 @@ SMOKESCREEN_UID="${SMOKESCREEN_UID:-65534}"
 REDSOCKS_PORT="${REDSOCKS_PORT:-12345}"
 DNS_SERVER="${DNS_SERVER:-223.5.5.5}"
 
-# 只拦截 Smokescreen 发出的 80/443 TCP 连接。
+# 只接管 Smokescreen 发出的 HTTP/HTTPS TCP 连接。
 iptables -t nat -N PLATCAP_UPSTREAM 2>/dev/null || true
 iptables -t nat -F PLATCAP_UPSTREAM
 
@@ -124,7 +117,7 @@ iptables -t nat -A PLATCAP_UPSTREAM \
     -p tcp \
     -j REDIRECT --to-ports "${REDSOCKS_PORT}"
 
-# Fail closed：Smokescreen 只允许连接本地 redsocks 和指定 DNS。
+# Fail closed：Smokescreen 只能响应已有连接、访问本机 redsocks 和查询指定 DNS。
 iptables -N PLATCAP_SMOKESCREEN_OUT 2>/dev/null || true
 iptables -F PLATCAP_SMOKESCREEN_OUT
 
@@ -134,6 +127,10 @@ iptables -C OUTPUT \
 iptables -A OUTPUT \
     -m owner --uid-owner "${SMOKESCREEN_UID}" \
     -j PLATCAP_SMOKESCREEN_OUT
+
+iptables -A PLATCAP_SMOKESCREEN_OUT \
+    -m conntrack --ctstate ESTABLISHED,RELATED \
+    -j ACCEPT
 
 iptables -A PLATCAP_SMOKESCREEN_OUT \
     -p tcp \
@@ -158,17 +155,17 @@ iptables -A PLATCAP_SMOKESCREEN_OUT -j REJECT
 exec redsocks -c /run/secrets/redsocks.conf
 ```
 
-赋予执行权限：
+增加执行权限：
 
 ```bash
 chmod 755 deploy/egress-gateway.sh
 ```
 
-脚本利用 Smokescreen 镜像里的 `USER nobody`，其 UID 通常是 `65534`。部署前应按照后续步骤确认实际 UID。
+这里按当前 Smokescreen 镜像的 `nobody` 用户使用 UID `65534`。网关只拦截该 UID 的连接，因此 redsocks 连接上游代理时不会再次被重定向，也不会形成循环。
 
-只匹配 Smokescreen 的 UID，可以避免 redsocks 连接统一代理时再次被透明重定向而形成死循环。
+Smokescreen 必须自行解析目标域名后才能检查目标 IP 是否属于私网或保留地址，所以 DNS 查询不能通过普通 HTTP 代理转发。上面的规则仅允许它访问指定 DNS；生产环境有可信内网 DNS 时，应把 `PLATCAP_DNS_SERVER` 设置为不带端口的 DNS IP，同时把现有 `PLATCAP_DEV_DNS` 设置为 `同一IP:53`。
 
-## 4. 创建透明网关镜像
+## 5. 创建出口网关镜像
 
 创建：
 
@@ -186,21 +183,24 @@ RUN apk add --no-cache \
     redsocks
 
 COPY deploy/egress-gateway.sh /usr/local/bin/egress-gateway
-
 RUN chmod 0755 /usr/local/bin/egress-gateway
 
 ENTRYPOINT ["/usr/local/bin/egress-gateway"]
 ```
 
-正式生产环境建议把基础镜像改成固定 digest，与项目现有镜像管理方式保持一致。
+以上属于部署镜像，不修改任何业务代码或 Smokescreen 代码。
 
-## 5. 修改 Docker Compose
+## 6. 修改两个节点的 Compose
 
-编辑 `deploy/compose.yaml`。
+node1 修改当前实际使用的 `deploy/compose.yaml`，或者部署时使用的 `deploy/compose.two-node.node1.yaml`。
 
-### 5.1 增加 egress-gateway 服务
+node2 修改 `deploy/compose.two-node.node2.yaml`。
 
-在现有 `smokescreen` 服务前增加：
+两个节点都执行相同修改。
+
+### 6.1 增加 egress-gateway
+
+在 `services` 下增加：
 
 ```yaml
   egress-gateway:
@@ -215,7 +215,7 @@ ENTRYPOINT ["/usr/local/bin/egress-gateway"]
     environment:
       SMOKESCREEN_UID: "65534"
       REDSOCKS_PORT: "12345"
-      DNS_SERVER: "223.5.5.5"
+      DNS_SERVER: ${PLATCAP_DNS_SERVER:-223.5.5.5}
 
     secrets:
       - source: upstream_redsocks_conf
@@ -243,41 +243,17 @@ ENTRYPOINT ["/usr/local/bin/egress-gateway"]
       retries: 20
 ```
 
-该服务接管原先属于 `smokescreen` 的：
+`egress-gateway` 接管原来属于 Smokescreen 的以下内容：
 
-- Docker 网络。
-- 固定 IP。
-- 宿主机端口映射。
-- 实际公网出口。
-- 网络管理能力 `NET_ADMIN`。
+- `egress_c`、`egress_l`、`outside` 和 `default` 网络；
+- 固定地址 `172.31.250.10`、`172.31.252.10`；
+- 宿主机调试端口 `127.0.0.1:18320`。
 
-不要把 `NET_ADMIN` 直接授予 Smokescreen。
+不要给 Smokescreen 增加 `NET_ADMIN`。
 
-### 5.2 修改现有 smokescreen 服务
+### 6.2 修改现有 smokescreen
 
-原配置类似：
-
-```yaml
-  smokescreen:
-    <<: *hardened
-    build:
-      context: ..
-      dockerfile: deploy/smokescreen.Dockerfile
-    environment:
-      PLATCAP_EGRESS_ALLOWED_PORTS: "80,443"
-    command: *smokescreen_args
-    networks:
-      egress_c:
-        ipv4_address: 172.31.250.10
-      egress_l:
-        ipv4_address: 172.31.252.10
-      outside: {}
-      default: {}
-    ports:
-      - "127.0.0.1:18320:4750"
-```
-
-将其调整为：
+将现有 `smokescreen` 服务改为：
 
 ```yaml
   smokescreen:
@@ -298,62 +274,113 @@ ENTRYPOINT ["/usr/local/bin/egress-gateway"]
         condition: service_healthy
 ```
 
-使用 `network_mode: service:egress-gateway` 后，`smokescreen` 下不能再保留 `networks` 和 `ports`，这些配置已经由 `egress-gateway` 持有。
-
-现有以下配置保持不变：
+必须从 `smokescreen` 服务中删除原有的：
 
 ```yaml
-PLATCAP_EGRESS_PROXY_URL: http://172.31.250.10:4750
-```
-
-以及 Chromium 的：
-
-```yaml
-PROXY_URL: http://172.31.250.10:4750
-```
-
-`egress-gateway` 接管了原来的固定 IP，而 Smokescreen 在同一个网络命名空间中监听 `4750`，因此 `web` 和 Chromium 不需要改变代理地址。
-
-### 5.3 增加顶层 Secret
-
-在 `deploy/compose.yaml` 中增加与 `services`、`networks`、`volumes` 同级的配置：
-
-```yaml
-secrets:
-  upstream_redsocks_conf:
-    file: ./secrets/redsocks.conf
-```
-
-整体结构类似：
-
-```yaml
-services:
-  egress-gateway:
-    # ...
-
-  smokescreen:
-    # ...
-
 networks:
-  # ...
+ports:
+```
 
-volumes:
-  # ...
+`network_mode: "service:egress-gateway"` 使 Smokescreen 与出口网关共享网络命名空间。Smokescreen 仍监听 `4750`，原有 web、Chromium 地址不需要改变。
 
+### 6.3 web 和 Chromium 保持不变
+
+每台机器的 web 继续使用本机 Smokescreen：
+
+```yaml
+environment:
+  PLATCAP_EGRESS_PROXY_URL: http://172.31.250.10:4750
+```
+
+每台机器的 Chromium 继续使用本机 Smokescreen：
+
+```yaml
+environment:
+  PROXY_URL: http://172.31.250.10:4750
+```
+
+不要把这两个值改成上游代理地址，否则 web/Chromium 会绕过 Smokescreen。
+
+node2 即使连接 node1 的 PostgreSQL、Valkey 和 MinIO，网页出网仍使用 node2 自己的 `172.31.250.10:4750`。两台机器可以使用相同的 Docker 子网和容器 IP，因为它们属于不同的 Docker Engine。
+
+### 6.4 增加顶层 secret
+
+在 Compose 文件中增加与 `services`、`networks`、`volumes` 同级的配置：
+
+```yaml
 secrets:
   upstream_redsocks_conf:
     file: ./secrets/redsocks.conf
 ```
 
-## 6. 校验配置
+目录结构应为：
 
-先解析 Compose 配置：
+```text
+deploy/
+├── compose.yaml
+├── compose.two-node.node1.yaml
+├── compose.two-node.node2.yaml
+├── egress-gateway.Dockerfile
+├── egress-gateway.sh
+└── secrets/
+    └── redsocks.conf
+```
+
+实际只需要保留正在使用的 Compose 文件。
+
+## 7. 可选 repo 服务
+
+如果没有启用 `repo` profile，本节不需要配置。
+
+`smokescreen-repo` 也没有上游代理参数。如果启用 repo，并要求其流量也通过上游代理，不能让它与网页 Smokescreen 共用同一个 `egress-gateway`，因为两个 Smokescreen 都监听 `4750`，共享网络命名空间会端口冲突。
+
+应复制一套独立服务：
+
+```text
+repo -> smokescreen-repo -> egress-gateway-repo -> HTTP 上游代理
+```
+
+`egress-gateway-repo` 只连接 `egress_r`、`outside` 网络，接管原来的 `172.31.253.10`；`smokescreen-repo` 使用：
+
+```yaml
+network_mode: "service:egress-gateway-repo"
+```
+
+repo 中的地址仍然保持：
+
+```yaml
+PLATCAP_EGRESS_PROXY_URL: http://172.31.253.10:4750
+```
+
+网页 Smokescreen 和 repo Smokescreen 可以复用同一个 `redsocks.conf`，但不能复用同一个网络命名空间。
+
+## 8. 校验 Compose
+
+node1 当前使用 `deploy/compose.yaml` 时：
 
 ```bash
-docker compose -f deploy/compose.yaml config
+docker compose -f deploy/compose.yaml config --quiet
 ```
 
-如果没有报错，再确认 Smokescreen 的实际 UID：
+如果 node1 已切换到专用文件：
+
+```bash
+docker compose \
+  --env-file deploy/env/node1.env \
+  -f deploy/compose.two-node.node1.yaml \
+  config --quiet
+```
+
+node2：
+
+```bash
+docker compose \
+  --env-file deploy/env/node2.env \
+  -f deploy/compose.two-node.node2.yaml \
+  config --quiet
+```
+
+确认 Smokescreen UID。node1 示例：
 
 ```bash
 docker compose -f deploy/compose.yaml run --rm \
@@ -361,71 +388,95 @@ docker compose -f deploy/compose.yaml run --rm \
   smokescreen
 ```
 
-预期类似：
+预期包含：
 
 ```text
 uid=65534(nobody)
 ```
 
-如果不是 `65534`，将网关服务中的配置改成实际 UID：
+如果实际 UID 不是 `65534`，将 `egress-gateway.environment.SMOKESCREEN_UID` 改为实际值。
 
-```yaml
-SMOKESCREEN_UID: "实际UID"
-```
+## 9. 构建与启动
 
-## 7. 构建并启动
+### 9.1 node1
 
-构建新镜像：
+当前使用 `deploy/compose.yaml` 时：
 
 ```bash
 docker compose -f deploy/compose.yaml build \
   egress-gateway smokescreen
-```
 
-重建相关容器：
-
-```bash
 docker compose -f deploy/compose.yaml up -d \
   --force-recreate \
-  egress-gateway smokescreen chromium web
+  egress-gateway smokescreen chromium web gateway
 ```
 
-查看状态：
+如果使用 `deploy/compose.two-node.node1.yaml`，替换命令中的 Compose 文件，并增加对应的 `--env-file`。
+
+### 9.2 node2
+
+```bash
+docker compose \
+  --env-file deploy/env/node2.env \
+  -f deploy/compose.two-node.node2.yaml \
+  build egress-gateway smokescreen
+
+docker compose \
+  --env-file deploy/env/node2.env \
+  -f deploy/compose.two-node.node2.yaml \
+  up -d --force-recreate \
+  egress-gateway smokescreen chromium web gateway
+```
+
+如果镜像由 node1 构建后通过 `docker save/load` 分发到 node2，应在 Compose 中给 `egress-gateway` 和 `smokescreen`设置固定 `image:` 名称；node2 加载镜像后执行 `up -d`，不执行 `build`。
+
+不要在 node2 执行当前的 `make up`，因为当前 Makefile 固定使用单机 `deploy/compose.yaml`。
+
+## 10. 验证
+
+以下命令先以 node1 的 `deploy/compose.yaml` 为例。node2 使用相同方法，只需替换 Compose 参数。
+
+### 10.1 查看状态和日志
 
 ```bash
 docker compose -f deploy/compose.yaml ps
-```
 
-查看日志：
-
-```bash
 docker compose -f deploy/compose.yaml logs \
   --tail=200 \
-  egress-gateway smokescreen
+  egress-gateway smokescreen chromium web
 ```
 
-由于 Smokescreen 共享 `egress-gateway` 的网络命名空间，每次重建透明网关后，都建议同时强制重建 `smokescreen`。
+`egress-gateway` 和 `smokescreen` 应保持运行，日志中不应反复出现连接上游代理失败。
 
-## 8. 验证透明转发规则
-
-查看 NAT 规则：
+### 10.2 通过本机 Smokescreen 测试公网
 
 ```bash
-docker compose -f deploy/compose.yaml exec \
-  egress-gateway \
-  iptables -t nat -S
+curl -I \
+  -x http://127.0.0.1:18320 \
+  https://example.com
+
+curl -sS \
+  -x http://127.0.0.1:18320 \
+  https://api.ipify.org
 ```
 
-应当能看到包含以下内容的规则：
+请求应成功，查询到的出口 IP 应符合上游代理的出口策略。
 
-```text
-PLATCAP_UPSTREAM
---uid-owner 65534
---dports 80,443
---to-ports 12345
+### 10.3 验证 Smokescreen 仍然生效
+
+```bash
+curl -v \
+  -x http://127.0.0.1:18320 \
+  http://127.0.0.1
+
+curl -v \
+  -x http://127.0.0.1:18320 \
+  http://169.254.169.254
 ```
 
-查看规则计数：
+两个请求都必须由 Smokescreen 拒绝，不能到达上游代理。
+
+### 10.4 查看透明转发计数
 
 ```bash
 docker compose -f deploy/compose.yaml exec \
@@ -433,145 +484,62 @@ docker compose -f deploy/compose.yaml exec \
   iptables -t nat -L PLATCAP_UPSTREAM -n -v
 ```
 
-通过 Smokescreen 访问网页后，数据包和字节计数应增加。
+执行网页抓取或前面的 `curl` 后，数据包和字节计数应增加。
 
-## 9. 验证实际公网出口
+### 10.5 验证上游代理不可用时禁止直连
 
-查询公网 IP：
-
-```bash
-curl -sS \
-  -x http://127.0.0.1:18320 \
-  https://api.ipify.org
-```
-
-返回值应当是统一代理的公网出口 IP。
-
-测试普通 HTTPS 网站：
+临时在网络侧阻断上游代理，或在维护窗口停止上游代理后，再执行：
 
 ```bash
-curl -I \
+curl -I --max-time 15 \
   -x http://127.0.0.1:18320 \
   https://example.com
 ```
 
-还应检查统一代理侧的访问日志，确认连接确实经过统一代理。
+请求必须失败，不能自动绕过上游代理直接访问 Internet。验证后恢复上游代理。
 
-## 10. 验证 SSRF 防护
+## 11. 常用运维命令
 
-尝试访问本机地址：
-
-```bash
-curl -v \
-  -x http://127.0.0.1:18320 \
-  http://127.0.0.1
-```
-
-尝试访问云元数据地址：
-
-```bash
-curl -v \
-  -x http://127.0.0.1:18320 \
-  http://169.254.169.254
-```
-
-两项都应在 Smokescreen 层被拒绝，不能进入 redsocks，更不能到达统一代理或目标地址。
-
-## 11. 验证禁止回退直连
-
-将 `redsocks.conf` 中的代理端口临时改成不存在的端口，然后重建网关和 Smokescreen：
+仅重新加载出口链路：
 
 ```bash
 docker compose -f deploy/compose.yaml up -d \
-  --build \
   --force-recreate \
   egress-gateway smokescreen
 ```
 
-此时网页请求必须失败，不能绕过统一代理直接访问 Internet。
+修改 `redsocks.conf` 后，建议同时重建 `egress-gateway` 和 `smokescreen`，确保重新读取配置并重新建立共享网络命名空间和转发规则：
 
-测试完成后恢复正确的代理配置并再次重建相关服务。
-
-## 12. DNS 配置
-
-当前 Smokescreen 使用类似以下参数：
-
-```yaml
---resolver-address=${PLATCAP_DEV_DNS:-223.5.5.5:53}
+```bash
+docker compose -f deploy/compose.yaml up -d \
+  --force-recreate \
+  egress-gateway smokescreen chromium web
 ```
 
-Smokescreen 必须先解析目标域名，才能判断解析结果是否属于内网或保留地址。因此，即使网页 TCP 流量全部经过统一代理，Smokescreen 仍需要独立的 DNS 通道。
+查看出口日志：
 
-如果公司要求使用内部 DNS，应同时修改：
-
-```yaml
-PLATCAP_DEV_DNS: 公司DNS地址:53
+```bash
+docker compose -f deploy/compose.yaml logs -f \
+  egress-gateway smokescreen
 ```
 
-以及网关服务中的：
+不要执行：
 
-```yaml
-DNS_SERVER: "公司DNS地址"
+```bash
+docker compose down -v
 ```
 
-不能使用返回 `198.18.x.x` 的 fake-ip DNS，否则 Smokescreen 会把结果识别为保留地址并拒绝访问。
+`-v` 会删除 PostgreSQL、MinIO/Silo、web 存储等命名卷数据。
 
-如果公司要求包括 DNS 在内的全部流量都不得直接访问公网，应在网关里运行受控 DNS 转发器，或者允许 Smokescreen 只访问公司内部 DNS。
+## 12. 最终检查清单
 
-## 13. HTTP CONNECT 的限制
-
-透明方案对 HTTPS 最可靠：
-
-```text
-Smokescreen 连接目标 IP:443
-→ iptables 重定向到 redsocks
-→ redsocks 向统一代理发送 CONNECT 目标 IP:443
-→ TLS 流量在隧道中传输
-```
-
-需要确认统一代理满足以下要求：
-
-- 允许 `CONNECT 目标IP:443`。
-- 如果需要访问 HTTP 网站，允许 `CONNECT 目标IP:80`。
-- 如果启用了认证，认证方式受 redsocks 支持。
-
-以下情况可能无法直接使用经典 redsocks：
-
-- 统一代理只接受目标域名，不接受目标 IP。
-- 使用 NTLM、Kerberos 或 PAC 自动代理脚本。
-- 上游代理本身要求 HTTPS/TLS 连接。
-- 上游代理不允许通过 CONNECT 访问端口 80。
-
-这类场景可能需要使用 `cntlm`、`sing-box`、`gost` 等中间组件，或者为 Smokescreen 实现原生上游代理支持。
-
-## 14. smokescreen-repo
-
-项目中的 `smokescreen-repo` 也监听端口 `4750`，因此不能与普通 Smokescreen 共用一个网络命名空间，否则会发生端口冲突。
-
-如果读代码服务也要使用统一代理，建议使用独立链路：
-
-```text
-repo
-  → smokescreen-repo
-  → repo-egress-gateway
-  → 统一代理
-```
-
-`repo-egress-gateway` 可以复用相同的镜像和上游代理配置，但应使用独立网络命名空间，并继续保留 `smokescreen-repo` 的托管站域名白名单。
-
-## 15. 上线检查清单
-
-- [ ] `docker compose config` 校验通过。
-- [ ] Smokescreen UID 与 `SMOKESCREEN_UID` 一致。
-- [ ] redsocks 监听 `127.0.0.1:12345`。
-- [ ] Smokescreen 仍监听 `4750`。
-- [ ] `web` 和 Chromium 的代理地址保持不变。
-- [ ] iptables 只拦截 Smokescreen 的 UID。
-- [ ] redsocks 自身流量没有形成重定向死循环。
-- [ ] 公网出口 IP 与统一代理出口一致。
-- [ ] 统一代理日志能看到对应连接。
-- [ ] `127.0.0.1` 和 `169.254.169.254` 仍被 Smokescreen 拒绝。
-- [ ] 上游代理不可用时请求失败，不能回退直连。
-- [ ] DNS 使用真实 DNS，不返回 fake-ip。
-- [ ] 代理密码没有提交到代码仓库。
-
+- node1、node2 都存在自己的 `egress-gateway` 和 `smokescreen`；
+- 两台机器的 `redsocks.conf` 都指向正确的无需认证 HTTP 上游代理；
+- web 的 `PLATCAP_EGRESS_PROXY_URL` 仍指向本机 `172.31.250.10:4750`；
+- Chromium 的 `PROXY_URL` 仍指向本机 `172.31.250.10:4750`；
+- Smokescreen 使用 `network_mode: "service:egress-gateway"`；
+- Smokescreen 自身不再配置 `networks` 和 `ports`；
+- `egress-gateway` 持有原 Smokescreen 的网络、固定 IP 和调试端口；
+- 上游代理不可用时，网页抓取失败而不是回退直连；
+- `127.0.0.1`、`169.254.169.254` 等地址仍被 Smokescreen 拒绝；
+- node2 使用专用 Compose 文件启动，没有执行当前单机版 `make up`。
