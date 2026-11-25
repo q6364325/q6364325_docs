@@ -1,0 +1,72 @@
+将下面内容保存到 ~/.config/mihomo/config.yaml，替换订阅链接和控制密码：
+mixed-port: 7890
+allow-lan: false
+bind-address: "*"
+
+mode: rule
+log-level: info
+ipv6: true
+
+external-controller: 127.0.0.1:9090
+secret: "替换为随机长密码"
+
+profile:
+  store-selected: true
+  store-fake-ip: true
+
+proxy-providers:
+  subscription:
+    type: http
+    url: "https://example.com/你的订阅链接"
+    path: ./providers/subscription.yaml
+    interval: 21600
+
+    health-check:
+      enable: true
+      url: https://www.gstatic.com/generate_204
+      interval: 300
+      lazy: true
+
+proxy-groups:
+  - name: 节点选择
+    type: select
+    proxies:
+      - 自动选择
+      - DIRECT
+    use:
+      - subscription
+
+  - name: 自动选择
+    type: url-test
+    use:
+      - subscription
+    url: https://www.gstatic.com/generate_204
+    interval: 300
+    tolerance: 80
+    lazy: true
+
+rules:
+  # 本机与局域网
+  - DOMAIN,localhost,DIRECT
+  - DOMAIN-SUFFIX,local,DIRECT
+  - IP-CIDR,127.0.0.0/8,DIRECT,no-resolve
+  - IP-CIDR,10.0.0.0/8,DIRECT,no-resolve
+  - IP-CIDR,172.16.0.0/12,DIRECT,no-resolve
+  - IP-CIDR,192.168.0.0/16,DIRECT,no-resolve
+  - IP-CIDR6,::1/128,DIRECT,no-resolve
+  - IP-CIDR6,fc00::/7,DIRECT,no-resolve
+  - IP-CIDR6,fe80::/10,DIRECT,no-resolve
+
+  # 中国大陆域名和 IP 直连
+  - GEOSITE,CN,DIRECT
+  - GEOIP,CN,DIRECT,no-resolve
+
+  # 其他流量使用代理节点
+  - MATCH,节点选择
+  
+
+检查配置：
+mihomo -t -f ~/.config/mihomo/config.yaml
+
+启动：
+mihomo -d ~/.config/mihomo
