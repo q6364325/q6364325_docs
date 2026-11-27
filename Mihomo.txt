@@ -70,3 +70,8 @@ mihomo -t -f ~/.config/mihomo/config.yaml
 
 启动：
 mihomo -d ~/.config/mihomo
+
+
+https://sub.jeeyio.com/api/subscribe/{}?type=clash&platform=linux
+
+z9qmTzRYLPJFMLErprsdqUw3Vk1Kkc8iYBf
